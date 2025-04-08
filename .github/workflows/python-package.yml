@@ -1,0 +1,97 @@
+import sys
+import random
+import math
+from PyQt5.QtWidgets import QApplication, QOpenGLWidget
+from PyQt5.QtCore import QTimer, Qt, QPoint
+from PyQt5.QtGui import QCursor
+from OpenGL.GL import *
+from OpenGL.GLU import *
+import trimesh
+
+class DesktopPet(QOpenGLWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+
+        self.mesh = trimesh.load("PM3D_Sphere3D.stl")
+        self.vertices = self.mesh.vertices
+        self.faces = self.mesh.faces
+
+        self.resize(300, 300)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_position)
+        self.timer.start(16)
+
+        self.vx = random.choice([-1, 1]) * 2
+        self.vy = random.choice([-1, 1]) * 2
+
+        self.rotation = 0
+        self.is_scared = False
+        self.scare_timer = QTimer()
+        self.scare_timer.setSingleShot(True)
+        self.scare_timer.timeout.connect(self.calm_down)
+
+    def initializeGL(self):
+        glEnable(GL_DEPTH_TEST)
+        glClearColor(0, 0, 0, 0)
+
+    def resizeGL(self, w, h):
+        glViewport(0, 0, w, h)
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        gluPerspective(45, w / h, 0.1, 100.0)
+        glMatrixMode(GL_MODELVIEW)
+
+    def paintGL(self):
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        glLoadIdentity()
+        glTranslatef(0.0, 0.0, -3.5)
+
+        glRotatef(self.rotation, 0, 1, 0)
+
+        if self.is_scared:
+            glColor3f(0.0, 1.0, 0.0)  # Green when scared
+        else:
+            glColor3f(1.0, 1.0, 1.0)  # White normally
+
+        glBegin(GL_TRIANGLES)
+        for face in self.faces:
+            for vertex_i in face:
+                glVertex3fv(self.vertices[vertex_i])
+        glEnd()
+
+    def update_position(self):
+        screen = QApplication.primaryScreen().geometry()
+        x = self.x() + self.vx
+        y = self.y() + self.vy
+
+        if x <= 0 or x + self.width() >= screen.width():
+            self.vx *= -1
+        if y <= 0 or y + self.height() >= screen.height():
+            self.vy *= -1
+
+        self.move(x, y)
+
+        if self.is_scared:
+            self.rotation += 10
+        self.update()
+
+    def mousePressEvent(self, event):
+        self.get_scared()
+
+    def get_scared(self):
+        self.is_scared = True
+        self.scare_timer.start(1000)  # Stay scared for 1 sec
+
+    def calm_down(self):
+        self.is_scared = False
+        self.rotation = 0
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    pet = DesktopPet()
+    pet.show()
+    sys.exit(app.exec_())
